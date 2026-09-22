@@ -62,6 +62,7 @@ class RunReport:
     generated_at: str
     space: str
     morphology_kind: str
+    coordinate_scale: tuple  # (sx, sy, sz) multiplier applied to raw XYZ before metric evaluation
     ccf_resolution: Optional[int]  # microns/voxel, when space == ccf_registered
     policy_version: str
     suite_name: Optional[str]

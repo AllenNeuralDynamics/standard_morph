@@ -69,5 +69,40 @@ class TestPreparedMorphology(unittest.TestCase):
         self.assertEqual(pm.node_id[pm.orphans].tolist(), [2])
 
 
+class TestCoordinateScale(unittest.TestCase):
+    def _simple_df(self):
+        return _df([
+            (1, 1, 1.0, 2.0, 3.0, 1.0, -1),
+            (2, 3, 4.0, 5.0, 6.0, 1.0, 1),
+        ])
+
+    def test_default_identity_leaves_xyz_unchanged(self):
+        pm = PreparedMorphology.from_dataframe(self._simple_df())
+        np.testing.assert_array_equal(pm.xyz[0], [1.0, 2.0, 3.0])
+        np.testing.assert_array_equal(pm.xyz[1], [4.0, 5.0, 6.0])
+
+    def test_uniform_scale_multiplies_all_axes(self):
+        pm = PreparedMorphology.from_dataframe(self._simple_df(), coordinate_scale=(2.0, 2.0, 2.0))
+        np.testing.assert_array_equal(pm.xyz[0], [2.0, 4.0, 6.0])
+        np.testing.assert_array_equal(pm.xyz[1], [8.0, 10.0, 12.0])
+
+    def test_per_axis_scale_multiplies_independently(self):
+        pm = PreparedMorphology.from_dataframe(self._simple_df(), coordinate_scale=(1.0, 2.0, 3.0))
+        np.testing.assert_array_equal(pm.xyz[0], [1.0, 4.0, 9.0])
+        np.testing.assert_array_equal(pm.xyz[1], [4.0, 10.0, 18.0])
+
+    def test_raw_df_is_unchanged(self):
+        df = self._simple_df()
+        PreparedMorphology.from_dataframe(df, coordinate_scale=(10.0, 10.0, 10.0))
+        # The original DataFrame must not be modified.
+        self.assertAlmostEqual(df["x"].iloc[0], 1.0)
+        self.assertAlmostEqual(df["y"].iloc[0], 2.0)
+        self.assertAlmostEqual(df["z"].iloc[0], 3.0)
+
+    def test_int_scale_elements_work(self):
+        pm = PreparedMorphology.from_dataframe(self._simple_df(), coordinate_scale=(2, 2, 2))
+        np.testing.assert_array_equal(pm.xyz[0], [2.0, 4.0, 6.0])
+
+
 if __name__ == "__main__":
     unittest.main()

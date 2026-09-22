@@ -49,11 +49,20 @@ class PreparedMorphology:
 
     # ------------------------------------------------------------------ build
     @classmethod
-    def from_dataframe(cls, df):
+    def from_dataframe(cls, df, coordinate_scale=(1.0, 1.0, 1.0)):
         """Build from a DataFrame with the standard SWC columns.
 
         Expects columns ``node_id, compartment, x, y, z, r, parent``. Node ids
         need not be contiguous or sorted; they are remapped internally.
+
+        Parameters
+        ----------
+        df : pandas.DataFrame
+            Raw SWC table.
+        coordinate_scale : tuple of float, length 3
+            Per-axis multiplier ``(sx, sy, sz)`` applied to raw XYZ before
+            storing. Pass ``context.coordinate_scale`` to normalise voxel-space
+            or expansion-corrected files to microns. Default is no-op.
         """
         missing_cols = [c for c in SWC_COLUMN_NAMES if c not in df.columns]
         if missing_cols:
@@ -62,7 +71,7 @@ class PreparedMorphology:
         df = df.reset_index(drop=True)
         node_id = df["node_id"].to_numpy(dtype=np.int64)
         orig_parent = df["parent"].to_numpy(dtype=np.int64)
-        xyz = df[["x", "y", "z"]].to_numpy(dtype=float)
+        xyz = df[["x", "y", "z"]].to_numpy(dtype=float) * np.array(coordinate_scale)
         compartment = df["compartment"].to_numpy(dtype=np.int64)
         radius = df["r"].to_numpy(dtype=float)  # radius is a required SWC column
 

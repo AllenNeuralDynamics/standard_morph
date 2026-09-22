@@ -276,7 +276,18 @@ def run_qc(input_data, context, suite_name=None, metrics=None, policy_version=No
         results = [_skipped(n, _BUILD_BLOCKED_REASON) for n in morph_names]
         morphology_evaluated = False
     else:
-        prepared_morph = prebuilt if prebuilt is not None else PreparedMorphology.from_dataframe(swc_df)
+        if prebuilt is not None:
+            if context.coordinate_scale != (1.0, 1.0, 1.0):
+                raise ValueError(
+                    "coordinate_scale has no effect when a PreparedMorphology is passed as "
+                    "input_data (coordinates are already scaled). Scale the morphology before "
+                    "constructing it, or pass a raw SWC path/DataFrame instead."
+                )
+            prepared_morph = prebuilt
+        else:
+            prepared_morph = PreparedMorphology.from_dataframe(
+                swc_df, coordinate_scale=context.coordinate_scale
+            )
         results = []
         for n in morph_names:
             metric = REGISTRY.get(n)
@@ -292,6 +303,7 @@ def run_qc(input_data, context, suite_name=None, metrics=None, policy_version=No
         generated_at=datetime.now(timezone.utc).isoformat(),
         space=context.space.value,
         morphology_kind=context.morphology_kind.value,
+        coordinate_scale=context.coordinate_scale,
         ccf_resolution=context.ccf_resolution,
         policy_version=effective_policy_version,
         suite_name=suite_name,
