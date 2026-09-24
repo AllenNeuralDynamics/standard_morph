@@ -215,7 +215,7 @@ Two further input-integrity metrics are *opt-in* (requested explicitly; not in t
 
 ## The run report
 
-`run_qc` returns a `RunReport` with two result lists: `integrity_results` (input phase) and `results` (morphology phase). Every metric result carries its raw measurements, the thresholds used, and the **full** list of flagged nodes (ids *and* coordinates — no sampling or capping). `report.to_dict()` yields a JSON-serialisable structure suitable for writing to a file or database.
+`run_qc` returns a `RunReport` with two result lists: `integrity_results` (input phase) and `results` (morphology phase). Every metric result carries its raw measurements, the thresholds used, and the **full** list of flagged nodes (ids *and* coordinates — no sampling or capping). `policy_thresholds` records the active policy's values for every metric in the run (the buildability checks plus the requested metrics), so a report carries its exact thresholds rather than only the `policy_version` name. `report.to_dict()` yields a JSON-serialisable structure suitable for writing to a file or database.
 
 ```python
 import json
@@ -233,7 +233,7 @@ Example `report.to_dict()` (two of eleven results shown; flagged lists trimmed):
 
 ```json
 {
-  "schema_version": "1.1",
+  "schema_version": "1.2",
   "standard_morph_version": "0.1.0",
   "generated_at": "2026-08-12T20:58:02.477061+00:00",
   "space": "image_space",
@@ -247,6 +247,14 @@ Example `report.to_dict()` (two of eleven results shown; flagged lists trimmed):
     "axon_origination", "apical_origination", "compartment_transitions", "local_tortuosity"
   ],
   "input_ref": "cell.swc",
+  "policy_thresholds": {
+    "required_columns": {}, "non_empty": {}, "castable_columns": {},
+    "unique_node_ids": {}, "valid_parent_references": {}, "acyclic": {},
+    "single_root_node": {},
+    "edge_length": {"max_length_um": {"image_space": {"lo": 0, "hi": 30.0}, "ccf_registered": {"lo": 0, "hi": 10.0}}},
+    "local_tortuosity": {"tortuosity_threshold": 10.0},
+    ...
+  },
   "integrity_results": [
     {"name": "required_columns",        "status": "pass", "value": 0,    "value_label": "n_missing_columns", ...},
     {"name": "non_empty",               "status": "pass", "value": 3237, "value_label": "n_rows", ...},
@@ -331,7 +339,7 @@ run_qc("cell.swc", QCContext(space=Space.IMAGE_SPACE, policy_version="policy_v1"
 run_qc("cell.swc", context, suite_name=..., policy_version="policy_v1")
 ```
 
-The active policy version is always recorded in the report.
+The active policy version is always recorded in the report, along with the policy values for every metric in the run (`policy_thresholds`).
 
 ### Custom policies
 
@@ -351,7 +359,7 @@ report = run_qc("cell.swc", QCContext(space=Space.IMAGE_SPACE),
 report.policy_version   # 'my_pipeline_v1'
 ```
 
-`policy` and `policy_version` are mutually exclusive. A custom policy goes through the same pre-flight as a built-in one, so a missing required key raises `MissingPolicyValuesError` before any metric runs.
+`policy` and `policy_version` are mutually exclusive. Because the thresholds are copied into `report.policy_thresholds`, a report from a custom policy can still be traced to its exact values. A custom policy goes through the same pre-flight as a built-in one, so a missing required key raises `MissingPolicyValuesError` before any metric runs.
 
 ### Space-keyed thresholds
 

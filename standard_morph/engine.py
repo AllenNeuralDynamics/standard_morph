@@ -22,6 +22,7 @@ This is what lets a batch of thousands of files stay robust: a malformed file
 yields a normal report naming the integrity failure, never a stack trace.
 Exceptions are reserved for genuine bugs, not for bad input.
 """
+import copy
 import os
 import time
 from dataclasses import replace
@@ -315,6 +316,9 @@ def run_qc(input_data, context, suite_name=None, metrics=None, policy_version=No
         suite_name=suite_name,
         requested_metrics=metric_names,
         input_ref=input_ref,
+        policy_thresholds={
+            n: copy.deepcopy(policy.for_metric(n)) for n in input_run_names + morph_names
+        },
         integrity_results=integrity_results,
         results=results,
         morphology_evaluated=morphology_evaluated,

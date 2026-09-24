@@ -3,7 +3,12 @@ from pathlib import Path
 
 import pandas as pd
 
-from standard_morph import run_qc, QCContext, Space, MorphologyKind, Policy, get_policy
+import json
+
+from standard_morph import (
+    run_qc, QCContext, Space, MorphologyKind, Policy, PolicyRange, SCHEMA_VERSION, get_policy,
+)
+from standard_morph.engine import BUILDABILITY_METRICS
 from standard_morph.exceptions import IncompatibleMetricContextError, MissingPolicyValuesError
 from standard_morph.registry import REGISTRY
 from standard_morph.suites import resolve_suite, available_suites
@@ -150,6 +155,39 @@ class TestCustomPolicy(unittest.TestCase):
         with self.assertRaises(TypeError):
             run_qc(_clean_tree(), ctx, metrics=["local_tortuosity"],
                    policy={"local_tortuosity": {"tortuosity_threshold": 2.0}})
+
+    def test_report_records_policy_thresholds(self):
+        ctx = QCContext(space=Space.IMAGE_SPACE)
+        policy = _custom_policy(local_tortuosity={"tortuosity_threshold": 2.5})
+        report = run_qc(_clean_tree(), ctx, metrics=["local_tortuosity", "edge_length"], policy=policy)
+        self.assertEqual(
+            list(report.policy_thresholds), BUILDABILITY_METRICS + ["local_tortuosity", "edge_length"]
+        )
+        self.assertEqual(report.policy_thresholds["local_tortuosity"], {"tortuosity_threshold": 2.5})
+        self.assertEqual(report.policy_thresholds["unique_node_ids"], {})
+        # Metrics outside the run are not recorded.
+        self.assertNotIn("nodes_outside_ccf_mesh", report.policy_thresholds)
+
+    def test_policy_thresholds_serialise_policy_ranges(self):
+        ctx = QCContext(space=Space.IMAGE_SPACE)
+        report = run_qc(_clean_tree(), ctx, metrics=["edge_length"])
+        d = json.loads(json.dumps(report.to_dict()))
+        self.assertEqual(d["schema_version"], SCHEMA_VERSION)
+        self.assertEqual(
+            d["policy_thresholds"]["edge_length"]["max_length_um"]["image_space"],
+            {"lo": 0, "hi": 30.0},
+        )
+        # The in-memory report keeps the real PolicyRange objects.
+        self.assertIsInstance(
+            report.policy_thresholds["edge_length"]["max_length_um"]["image_space"], PolicyRange
+        )
+
+    def test_policy_thresholds_are_a_copy(self):
+        ctx = QCContext(space=Space.IMAGE_SPACE)
+        policy = _custom_policy()
+        report = run_qc(_clean_tree(), ctx, metrics=["edge_length"], policy=policy)
+        report.policy_thresholds["edge_length"]["max_length_um"]["image_space"] = 1.0
+        self.assertIsInstance(policy["edge_length", "max_length_um"]["image_space"], PolicyRange)
 
     def test_custom_policy_missing_key_fails_preflight(self):
         ctx = QCContext(space=Space.IMAGE_SPACE)
