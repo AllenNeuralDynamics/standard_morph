@@ -3,8 +3,8 @@ from pathlib import Path
 
 import pandas as pd
 
-from standard_morph import run_qc, QCContext, Space, MorphologyKind
-from standard_morph.exceptions import IncompatibleMetricContextError
+from standard_morph import run_qc, QCContext, Space, MorphologyKind, Policy, get_policy
+from standard_morph.exceptions import IncompatibleMetricContextError, MissingPolicyValuesError
 from standard_morph.registry import REGISTRY
 from standard_morph.suites import resolve_suite, available_suites
 
@@ -112,6 +112,50 @@ class TestRunQC(unittest.TestCase):
         ctx = QCContext(space=Space.IMAGE_SPACE, policy_version="policy_v1")
         report = run_qc(_clean_tree(), ctx, metrics=["local_tortuosity"], policy_version="policy_v1")
         self.assertEqual(report.policy_version, "policy_v1")
+
+
+def _custom_policy(version="custom_v1", **overrides):
+    """policy_v1 with per-metric threshold dicts replaced by ``overrides``."""
+    thresholds = {name: dict(vals) for name, vals in get_policy("policy_v1").thresholds.items()}
+    thresholds.update(overrides)
+    return Policy(version=version, thresholds=thresholds)
+
+
+class TestCustomPolicy(unittest.TestCase):
+    def test_custom_threshold_changes_outcome(self):
+        ctx = QCContext(space=Space.IMAGE_SPACE)
+        # Node 3 -> node 2 is a 10 um edge: fine under policy_v1 (30 um), too long at 5 um.
+        default = run_qc(_clean_tree(), ctx, metrics=["edge_length"])
+        self.assertEqual(default.results[0].status, "pass")
+        custom = run_qc(_clean_tree(), ctx, metrics=["edge_length"],
+                        policy=_custom_policy(edge_length={"max_length_um": 5.0}))
+        self.assertEqual(custom.results[0].status, "fail")
+        self.assertEqual(custom.results[0].thresholds_used["max_length_um"], 5.0)
+
+    def test_custom_policy_version_recorded(self):
+        ctx = QCContext(space=Space.IMAGE_SPACE)
+        report = run_qc(_clean_tree(), ctx, metrics=["local_tortuosity"],
+                        policy=_custom_policy(version="my_pipeline_v3"))
+        self.assertEqual(report.policy_version, "my_pipeline_v3")
+        self.assertEqual(report.to_dict()["policy_version"], "my_pipeline_v3")
+
+    def test_policy_and_policy_version_are_exclusive(self):
+        ctx = QCContext(space=Space.IMAGE_SPACE)
+        with self.assertRaises(ValueError):
+            run_qc(_clean_tree(), ctx, metrics=["local_tortuosity"],
+                   policy=_custom_policy(), policy_version="policy_v1")
+
+    def test_policy_must_be_policy_instance(self):
+        ctx = QCContext(space=Space.IMAGE_SPACE)
+        with self.assertRaises(TypeError):
+            run_qc(_clean_tree(), ctx, metrics=["local_tortuosity"],
+                   policy={"local_tortuosity": {"tortuosity_threshold": 2.0}})
+
+    def test_custom_policy_missing_key_fails_preflight(self):
+        ctx = QCContext(space=Space.IMAGE_SPACE)
+        with self.assertRaises(MissingPolicyValuesError):
+            run_qc(_clean_tree(), ctx, metrics=["local_tortuosity"],
+                   policy=_custom_policy(local_tortuosity={}))
 
 
 if __name__ == "__main__":

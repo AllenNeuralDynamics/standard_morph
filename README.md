@@ -333,6 +333,26 @@ run_qc("cell.swc", context, suite_name=..., policy_version="policy_v1")
 
 The active policy version is always recorded in the report.
 
+### Custom policies
+
+Pipelines that need their own thresholds can pass a `Policy` object directly instead of a built-in version name. Start from a built-in policy so every metric keeps a value, override what you need, and give it a distinct `version` -- that name is what the report records:
+
+```python
+from standard_morph import run_qc, get_policy, Policy, PolicyRange, QCContext, Space
+
+base = get_policy("policy_v1")
+thresholds = {name: dict(vals) for name, vals in base.thresholds.items()}
+thresholds["edge_length"]["max_length_um"] = {"image_space": PolicyRange(lo=0, hi=40.0)}
+thresholds["local_tortuosity"]["tortuosity_threshold"] = 5.0
+
+policy = Policy(version="my_pipeline_v1", thresholds=thresholds)
+report = run_qc("cell.swc", QCContext(space=Space.IMAGE_SPACE),
+                suite_name="default_pre_registration_tests", policy=policy)
+report.policy_version   # 'my_pipeline_v1'
+```
+
+`policy` and `policy_version` are mutually exclusive. A custom policy goes through the same pre-flight as a built-in one, so a missing required key raises `MissingPolicyValuesError` before any metric runs.
+
 ### Space-keyed thresholds
 
 Some thresholds differ between coordinate spaces — edge lengths are typically ~30 µm before resampling (image space) and ~10 µm after (CCF). For these, the policy value is a **per-space dict** keyed by the `Space.value` string:
