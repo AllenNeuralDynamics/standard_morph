@@ -119,6 +119,77 @@ class TestRunQC(unittest.TestCase):
         self.assertEqual(report.policy_version, "policy_v1")
 
 
+class TestQCContextCoordinateScaleValidation(unittest.TestCase):
+    def test_default_is_identity(self):
+        ctx = QCContext(space=Space.IMAGE_SPACE)
+        self.assertEqual(ctx.coordinate_scale, (1.0, 1.0, 1.0))
+
+    def test_list_input_accepted_and_coerced_to_tuple_of_floats(self):
+        ctx = QCContext(space=Space.IMAGE_SPACE, coordinate_scale=[2, 3, 4])
+        self.assertEqual(ctx.coordinate_scale, (2.0, 3.0, 4.0))
+        self.assertIsInstance(ctx.coordinate_scale[0], float)
+
+    def test_wrong_length_raises(self):
+        with self.assertRaises(ValueError):
+            QCContext(space=Space.IMAGE_SPACE, coordinate_scale=(1.0, 1.0))
+        with self.assertRaises(ValueError):
+            QCContext(space=Space.IMAGE_SPACE, coordinate_scale=(1.0, 1.0, 1.0, 1.0))
+
+    def test_non_numeric_element_raises(self):
+        with self.assertRaises(TypeError):
+            QCContext(space=Space.IMAGE_SPACE, coordinate_scale=(1.0, "2.0", 1.0))
+
+    def test_zero_element_raises(self):
+        with self.assertRaises(ValueError):
+            QCContext(space=Space.IMAGE_SPACE, coordinate_scale=(1.0, 0.0, 1.0))
+
+    def test_negative_element_raises(self):
+        with self.assertRaises(ValueError):
+            QCContext(space=Space.IMAGE_SPACE, coordinate_scale=(1.0, -1.0, 1.0))
+
+
+class TestCoordinateScaleIntegration(unittest.TestCase):
+    def _short_edge_df(self):
+        # A chain with edges of 2 um each -- well within the 30 um image-space threshold.
+        return _df([
+            (1, 1, 0.0, 0.0,  0.0, 1.0, -1),
+            (2, 3, 0.0, 0.0,  2.0, 1.0,  1),  # soma child (excluded from edge_length)
+            (3, 3, 0.0, 0.0,  4.0, 1.0,  2),  # edge 2 um
+            (4, 3, 0.0, 0.0,  6.0, 1.0,  3),  # edge 2 um
+        ])
+
+    def test_identity_scale_passes_edge_length(self):
+        ctx = QCContext(space=Space.IMAGE_SPACE)
+        report = run_qc(self._short_edge_df(), ctx, metrics=["edge_length"])
+        self.assertEqual(report.results[0].status, "pass")
+
+    def test_scale_makes_edges_exceed_threshold(self):
+        # scale of 20 turns 2 um raw -> 40 um effective, exceeding the 30 um limit.
+        ctx = QCContext(space=Space.IMAGE_SPACE, coordinate_scale=(20.0, 20.0, 20.0))
+        report = run_qc(self._short_edge_df(), ctx, metrics=["edge_length"])
+        self.assertEqual(report.results[0].status, "fail")
+
+    def test_coordinate_scale_recorded_in_report(self):
+        ctx = QCContext(space=Space.IMAGE_SPACE, coordinate_scale=(0.5, 0.5, 1.0))
+        report = run_qc(_clean_tree(), ctx, metrics=["single_connected_component"])
+        self.assertEqual(report.coordinate_scale, (0.5, 0.5, 1.0))
+
+    def test_prebuilt_morphology_with_nonidentity_scale_raises(self):
+        from standard_morph.preparation import PreparedMorphology
+        pm = PreparedMorphology.from_dataframe(_clean_tree())
+        ctx = QCContext(space=Space.IMAGE_SPACE, coordinate_scale=(2.0, 2.0, 2.0))
+        with self.assertRaises(ValueError):
+            run_qc(pm, ctx, metrics=["single_connected_component"])
+
+    def test_coordinate_scale_in_to_dict(self):
+        import json
+        ctx = QCContext(space=Space.IMAGE_SPACE, coordinate_scale=(0.748, 0.748, 1.0))
+        report = run_qc(_clean_tree(), ctx, metrics=["single_connected_component"])
+        d = report.to_dict()
+        self.assertEqual(d["coordinate_scale"], (0.748, 0.748, 1.0))
+        json.dumps(d)  # must not raise
+
+
 def _custom_policy(version="custom_v1", **overrides):
     """policy_v1 with per-metric threshold dicts replaced by ``overrides``."""
     thresholds = {name: dict(vals) for name, vals in get_policy("policy_v1").thresholds.items()}

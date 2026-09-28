@@ -75,6 +75,7 @@ class RunReport:
     suite_name: Optional[str]
     requested_metrics: List[str]
     input_ref: Optional[str]
+    coordinate_scale: tuple  # (sx, sy, sz) multiplier applied to raw XYZ before metric evaluation
     #: Active policy values for every metric in the run, keyed by metric name.
     policy_thresholds: dict = field(default_factory=dict)
     #: Input-integrity phase results (always run, before the morphology is built).
