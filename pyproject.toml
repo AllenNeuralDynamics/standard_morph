@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "standard_morph"
-version = "1.0.0"
+version = "1.0.1"
 description = "Standardizing morphologies"
 readme = "README.md"
 authors = [{ name = "Matthew Mallory", email = "matt.mallory@alleninstitute.org" }]
