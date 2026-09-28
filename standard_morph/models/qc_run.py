@@ -22,7 +22,9 @@ from standard_morph.models.qc_result import MetricResult
 #: Bump when the report structure changes in a breaking way.
 #: 1.0 -> 1.1: added the input-integrity phase (integrity_results,
 #: morphology_evaluated) and the "skipped" metric status.
-SCHEMA_VERSION = "1.1"
+#: 1.1 -> 1.2: added policy_thresholds (the policy values each executed metric
+#: ran under), so a report is self-describing even for a custom policy.
+SCHEMA_VERSION = "1.2"
 
 
 @dataclass
@@ -55,6 +57,12 @@ class RunReport:
         phase was skipped entirely.
     summary : dict
         Counts and ``overall_status`` over the morphology-quality results.
+    policy_thresholds : dict
+        ``{metric_name: {key: value}}`` from the active policy for every metric
+        in the run (the always-run buildability checks plus the requested
+        metrics), so the report records the exact thresholds, not just
+        ``policy_version``. ``PolicyRange`` values become ``{"lo", "hi"}`` in
+        :meth:`to_dict`.
     """
 
     schema_version: str
@@ -68,6 +76,8 @@ class RunReport:
     requested_metrics: List[str]
     input_ref: Optional[str]
     coordinate_scale: tuple  # (sx, sy, sz) multiplier applied to raw XYZ before metric evaluation
+    #: Active policy values for every metric in the run, keyed by metric name.
+    policy_thresholds: dict = field(default_factory=dict)
     #: Input-integrity phase results (always run, before the morphology is built).
     integrity_results: List[MetricResult] = field(default_factory=list)
     #: Morphology-quality phase results (or "skipped" ones, if integrity blocked).
@@ -91,7 +101,8 @@ class RunReport:
     def to_dict(self):
         """Return a plain, JSON-serialisable dict of the whole report.
 
-        All dataclass fields are included. Coordinate tuples in
+        All dataclass fields are included; ``PolicyRange`` values in
+        ``policy_thresholds`` become ``{"lo", "hi"}`` dicts. Coordinate tuples in
         ``flagged_node_coordinates`` are converted to lists so the result
         round-trips through ``json.dumps`` without a custom encoder.
         The derived properties :attr:`integrity_ok` and :attr:`passed` are

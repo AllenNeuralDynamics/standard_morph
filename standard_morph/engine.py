@@ -22,6 +22,7 @@ This is what lets a batch of thousands of files stay robust: a malformed file
 yields a normal report naming the integrity failure, never a stack trace.
 Exceptions are reserved for genuine bugs, not for bad input.
 """
+import copy
 import os
 import time
 from dataclasses import replace
@@ -37,6 +38,7 @@ from standard_morph.preparation import PreparedMorphology
 from standard_morph.policies import get_policy
 from standard_morph.exceptions import IncompatibleMetricContextError, MissingPolicyValuesError
 from standard_morph.metrics.base import EvaluationPhase, BlockScope
+from standard_morph.models.qc_policy import Policy
 from standard_morph.models.qc_result import MetricResult
 from standard_morph.models.qc_run import RunReport, SCHEMA_VERSION
 
@@ -207,7 +209,19 @@ def _run_integrity_phase(swc_df, input_run_names, context, policy):
     return integrity_results, build_blocked, topology_blocked
 
 
-def run_qc(input_data, context, suite_name=None, metrics=None, policy_version=None):
+def _resolve_policy(context, policy_version, policy):
+    """Return ``(policy, version)`` from a custom ``Policy`` or a built-in version."""
+    if policy is None:
+        version = policy_version or context.policy_version
+        return get_policy(version), version
+    if policy_version is not None:
+        raise ValueError("Provide at most one of 'policy' or 'policy_version'.")
+    if not isinstance(policy, Policy):
+        raise TypeError(f"policy must be a Policy instance; got {type(policy)}.")
+    return policy, policy.version
+
+
+def run_qc(input_data, context, suite_name=None, metrics=None, policy_version=None, policy=None):
     """Run a QC suite (or explicit metric list) against a morphology.
 
     Parameters
@@ -224,6 +238,12 @@ def run_qc(input_data, context, suite_name=None, metrics=None, policy_version=No
         ``suite_name``.
     policy_version : str, optional
         Overrides ``context.policy_version`` when provided.
+    policy : Policy, optional
+        A custom :class:`~standard_morph.models.qc_policy.Policy` to use instead
+        of a built-in version (e.g. one derived from ``get_policy("policy_v1")``
+        with pipeline-specific thresholds). Its ``version`` is recorded in the
+        report. Mutually exclusive with ``policy_version``; overrides
+        ``context.policy_version``.
 
     Returns
     -------
@@ -233,8 +253,7 @@ def run_qc(input_data, context, suite_name=None, metrics=None, policy_version=No
     """
     t0 = time.perf_counter()
 
-    effective_policy_version = policy_version or context.policy_version
-    policy = get_policy(effective_policy_version)
+    policy, effective_policy_version = _resolve_policy(context, policy_version, policy)
 
     # When given a file path, expose its basename to filename-aware metrics
     # (e.g. filename_format) via resources["filename"], on a per-run copy so the
@@ -326,6 +345,9 @@ def run_qc(input_data, context, suite_name=None, metrics=None, policy_version=No
         suite_name=suite_name,
         requested_metrics=metric_names,
         input_ref=input_ref,
+        policy_thresholds={
+            n: copy.deepcopy(policy.for_metric(n)) for n in input_run_names + morph_names
+        },
         integrity_results=integrity_results,
         results=results,
         morphology_evaluated=morphology_evaluated,
