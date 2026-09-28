@@ -61,8 +61,10 @@ class PreparedMorphology:
             Raw SWC table.
         coordinate_scale : tuple of float, length 3
             Per-axis multiplier ``(sx, sy, sz)`` applied to raw XYZ before
-            storing. Pass ``context.coordinate_scale`` to normalise voxel-space
-            or expansion-corrected files to microns. Default is no-op.
+            storing. Pass ``context.coordinate_scale`` to convert voxel
+            coordinates to microns or to undo tissue expansion. Default is
+            no-op; see :class:`~standard_morph.models.qc_context.QCContext`
+            for usage examples.
         """
         missing_cols = [c for c in SWC_COLUMN_NAMES if c not in df.columns]
         if missing_cols:

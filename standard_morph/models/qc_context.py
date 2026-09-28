@@ -45,10 +45,19 @@ class QCContext:
     coordinate_scale : tuple of float, length 3
         Per-axis multiplier ``(sx, sy, sz)`` applied to raw XYZ coordinates
         before any distance computation. Default ``(1.0, 1.0, 1.0)`` leaves
-        coordinates unchanged (i.e. they are already in microns). Set this
-        when coordinates are in voxel space (e.g. ``(0.748, 0.748, 1.0)`` for
-        a 25x objective) or to correct for tissue expansion. Each value must
-        be a positive int or float.
+        coordinates unchanged (i.e. they are already in microns).
+
+        To convert voxel coordinates to microns: set each value to the
+        physical size of one voxel along that axis (e.g. ``(0.748, 0.748,
+        1.0)`` if XY voxels are 0.748 µm and Z voxels are 1.0 µm).
+
+        To correct for tissue expansion or shrinkage: set each value to the
+        inverse of the expansion factor along that axis (e.g.
+        ``(1/1.2, 1/1.2, 1/1.2)`` to correct coordinates from tissue that
+        expanded 1.2×, or ``(1/0.9, 1/0.9, 1/0.9)`` to correct for 0.9×
+        shrinkage).
+
+        Each value must be a positive int or float.
     ccf_resolution : int
         Microns per voxel used to convert micron coordinates to atlas voxel
         indices. Defaults to 10 (the bundled Allen CCF atlas). Only needs to
@@ -63,9 +72,9 @@ class QCContext:
     space: Space
     morphology_kind: MorphologyKind = MorphologyKind.MERGED
     resources: dict = field(default_factory=dict)
-    coordinate_scale: tuple = (1.0, 1.0, 1.0)
     ccf_resolution: int = 10
     policy_version: str = "policy_v1"
+    coordinate_scale: tuple = (1.0, 1.0, 1.0)
 
     def __post_init__(self):
         # Coerce plain strings into enums so callers can pass either.

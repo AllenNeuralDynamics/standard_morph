@@ -137,6 +137,22 @@ def _skipped(name, reason):
     return MetricResult(name=name, status="skipped", message=f"not run: {reason}")
 
 
+def _unscale_flagged_coordinates(results, coordinate_scale):
+    """Revert flagged_node_coordinates from scaled back to raw SWC space."""
+    if coordinate_scale == (1.0, 1.0, 1.0):
+        return results
+    sx, sy, sz = coordinate_scale
+    corrected = []
+    for r in results:
+        if r.flagged_node_coordinates:
+            r = replace(r, flagged_node_coordinates=[
+                (x / sx, y / sy, z / sz)
+                for x, y, z in r.flagged_node_coordinates
+            ])
+        corrected.append(r)
+    return corrected
+
+
 def _summarise(results):
     """Summarise the morphology-quality results (may include skipped ones)."""
     n_pass = sum(r.status == "pass" for r in results)
@@ -295,6 +311,7 @@ def run_qc(input_data, context, suite_name=None, metrics=None, policy_version=No
                 results.append(_skipped(n, _TOPOLOGY_BLOCKED_REASON))
             else:
                 results.append(metric.evaluate(prepared_morph, context, policy))
+        results = _unscale_flagged_coordinates(results, context.coordinate_scale)
         morphology_evaluated = True
 
     return RunReport(
