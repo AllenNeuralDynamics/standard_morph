@@ -22,7 +22,7 @@ cd standard_morph
 pip install ".[full]"
 ```
 
-The `full` extra includes all optional dependencies (`pynrrd`, `imageio`, `s3fs`, `zarr`, `scikit-image`) and is the recommended starting point. If you need a minimal install, the core library requires only `numpy` and `pandas`:
+The `full` extra includes all optional dependencies (`pynrrd`, `imageio`, `s3fs`, `zarr`, `scikit-image`, `neuroglancer`) and is the recommended starting point. If you need a minimal install, the core library requires only `numpy` and `pandas`:
 
 ```
 pip install .
@@ -33,6 +33,7 @@ Available extras for selective installs:
 ```
 pip install ".[ccf]"        # pynrrd -- CCF atlas / brain-mesh checks
 pip install ".[soma-mip]"   # imageio, s3fs, zarr, scikit-image -- image-based checks
+pip install ".[neuroglancer]"  # neuroglancer -- write QC errors as Neuroglancer layers (Python >= 3.10)
 pip install ".[test]"       # pytest
 ```
 
@@ -636,6 +637,34 @@ Add the new key to `policy_v1` in `standard_morph/policies.py`. If you omit `req
 
 An **input-integrity** metric instead sets `evaluation_phase = EvaluationPhase.INPUT_INTEGRITY`, a `blocks_on_failure` scope, and receives the raw DataFrame (named `swc_df`) — see `standard_morph/metrics/integrity.py`.
 
+
+## Visualizing QC errors in Neuroglancer
+
+`standard_morph.neuroglancer` turns QC runs into [Neuroglancer](https://github.com/google/neuroglancer) precomputed layers and links, so you can see each flagged node in place:
+
+* **`skeletons/`** is a skeleton source with one segment per neuron. Each node carries `radius`, `n_flags` (the number of metrics that flagged it), and a `flag_<metric>` attribute (0 or 1) for every metric that flagged a node. By default the skeleton shader draws flagged nodes in red. Segment properties hold each neuron's label, tags for its failing metrics, and a flag count per metric.
+* **`annotations/<metric>/`** is one point-annotation source per metric, with a point at each flagged node. Each point stores the SWC `node_id` and the result `status`, and links to its neuron's segment, so each layer shows errors only for the neurons selected in the skeleton layer.
+
+```python
+from standard_morph import run_qc
+from standard_morph.neuroglancer import NeuroglancerExporter
+
+exporter = NeuroglancerExporter(scale_um=(0.748, 0.748, 1.0))  # um per SWC unit (x, y, z)
+for path in swc_paths:
+    report = run_qc(path, context, metrics=metrics, policy=policy)
+    segment_id = exporter.add(path, report)
+
+exporter.write("out/ng")                     # then publish out/ng at s3://bucket/prefix
+batch_url = exporter.batch_url("s3://bucket/prefix", image_source="zarr://s3://.../fused.zarr")
+neuron_url = exporter.neuron_url(1, "s3://bucket/prefix")  # one neuron, centered on its first error
+```
+
+* **`scale_um`** is the physical size of one SWC unit. Coordinates are never converted, so use `(1, 1, 1)` for SWCs in micrometers and the voxel size for SWCs in voxel indices. A wrong scale misaligns the layers with the image.
+* **`image_source`** is optional. It is any Neuroglancer image source, added under the skeletons.
+* **Links** are plain JSON states. `batch_state` and `neuron_state` return them for editing, and `state_to_url` encodes them. The default viewer is `https://neuroglancer-demo.appspot.com`. Pass `base_url=` to use another deployment.
+* **Hosting:** Neuroglancer fetches the layers from the browser. An `s3://` source must be publicly readable, with CORS that allows `GET`.
+* **Dependencies:** writing annotations needs the `neuroglancer` extra. Skeletons, states and links need only the core dependencies.
+* **Unbuildable files:** a file whose morphology could not be built (a BUILD integrity failure) gets no skeleton, but any flagged nodes that have coordinates are still annotated.
 
 ## Programmatic discovery
 

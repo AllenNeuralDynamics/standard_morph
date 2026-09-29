@@ -22,8 +22,13 @@ exclude = ["tests", "tests.*"]
 [project.optional-dependencies]
 soma-mip = ["imageio", "s3fs", "zarr", "scikit-image"]
 ccf = ["pynrrd"]
-full = ["imageio", "s3fs", "zarr", "scikit-image", "pynrrd"]
-test = ["pytest", "pynrrd"]
+# Neuroglancer annotation writing; the package only supports Python >= 3.10.
+neuroglancer = ["neuroglancer>=2.40; python_version >= '3.10'"]
+full = [
+    "imageio", "s3fs", "zarr", "scikit-image", "pynrrd",
+    "neuroglancer>=2.40; python_version >= '3.10'",
+]
+test = ["pytest", "pynrrd", "neuroglancer>=2.40; python_version >= '3.10'"]
 
 [tool.setuptools.package-data]
 "standard_morph" = ["*"]
