@@ -139,6 +139,22 @@ def _skipped(name, reason):
     return MetricResult(name=name, status="skipped", message=f"not run: {reason}")
 
 
+def _unscale_flagged_coordinates(results, coordinate_scale):
+    """Revert flagged_node_coordinates from scaled back to raw SWC space."""
+    if coordinate_scale == (1.0, 1.0, 1.0):
+        return results
+    sx, sy, sz = coordinate_scale
+    corrected = []
+    for r in results:
+        if r.flagged_node_coordinates:
+            r = replace(r, flagged_node_coordinates=[
+                (x / sx, y / sy, z / sz)
+                for x, y, z in r.flagged_node_coordinates
+            ])
+        corrected.append(r)
+    return corrected
+
+
 def _summarise(results):
     """Summarise the morphology-quality results (may include skipped ones)."""
     n_pass = sum(r.status == "pass" for r in results)
@@ -295,7 +311,18 @@ def run_qc(input_data, context, suite_name=None, metrics=None, policy_version=No
         results = [_skipped(n, _BUILD_BLOCKED_REASON) for n in morph_names]
         morphology_evaluated = False
     else:
-        prepared_morph = prebuilt if prebuilt is not None else PreparedMorphology.from_dataframe(swc_df)
+        if prebuilt is not None:
+            if context.coordinate_scale != (1.0, 1.0, 1.0):
+                raise ValueError(
+                    "coordinate_scale has no effect when a PreparedMorphology is passed as "
+                    "input_data (coordinates are already scaled). Scale the morphology before "
+                    "constructing it, or pass a raw SWC path/DataFrame instead."
+                )
+            prepared_morph = prebuilt
+        else:
+            prepared_morph = PreparedMorphology.from_dataframe(
+                swc_df, coordinate_scale=context.coordinate_scale
+            )
         results = []
         for n in morph_names:
             metric = REGISTRY.get(n)
@@ -303,6 +330,7 @@ def run_qc(input_data, context, suite_name=None, metrics=None, policy_version=No
                 results.append(_skipped(n, _TOPOLOGY_BLOCKED_REASON))
             else:
                 results.append(metric.evaluate(prepared_morph, context, policy))
+        results = _unscale_flagged_coordinates(results, context.coordinate_scale)
         morphology_evaluated = True
 
     return RunReport(
@@ -311,6 +339,7 @@ def run_qc(input_data, context, suite_name=None, metrics=None, policy_version=No
         generated_at=datetime.now(timezone.utc).isoformat(),
         space=context.space.value,
         morphology_kind=context.morphology_kind.value,
+        coordinate_scale=context.coordinate_scale,
         ccf_resolution=context.ccf_resolution,
         policy_version=effective_policy_version,
         suite_name=suite_name,
