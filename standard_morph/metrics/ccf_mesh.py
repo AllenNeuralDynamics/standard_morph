@@ -12,16 +12,16 @@ import time
 
 import numpy as np
 
-from standard_morph.metrics.base import Metric, Applicability
+from standard_morph.metrics.base import Metric, Applicability, Severity
 from standard_morph.models.qc_context import Space, ALL_MORPHOLOGY_KINDS
 from standard_morph.models.qc_result import MetricResult
 from standard_morph.registry import register
 from standard_morph.atlas import load_ccf_annotation, coordinates_to_voxels, in_brain_mask
 
-
 class _CcfMeshMetric(Metric):
     """Shared applicability and atlas resolution for CCF-mesh metrics."""
 
+    violation_severity = Severity.REVIEW
     applicability = Applicability(
         spaces=frozenset({Space.CCF_REGISTERED}),
         morphology_kinds=ALL_MORPHOLOGY_KINDS,
@@ -48,6 +48,7 @@ class NodesOutsideCcfMeshMetric(_CcfMeshMetric):
     metric_number = 3
     requires_topology = False  # per-node voxel lookup; reads only xyz
     required_policy_keys = frozenset({"max_fraction_outside"})
+    
 
     def evaluate(self, prepared_morph, context, policy):
         t0 = time.perf_counter()

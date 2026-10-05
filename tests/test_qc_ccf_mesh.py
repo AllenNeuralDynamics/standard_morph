@@ -50,7 +50,7 @@ class TestNodesOutsideCcfMesh(unittest.TestCase):
         ])
         pm = PreparedMorphology.from_dataframe(df)
         result = NodesOutsideCcfMeshMetric().evaluate(pm, _ccf_ctx(), self._policy())
-        self.assertEqual(result.status, "fail")
+        self.assertEqual(result.status, "review")
         self.assertEqual(sorted(result.flagged_node_ids), [3, 4])
         self.assertEqual(result.measurements["n_outside"], 2)
         self.assertAlmostEqual(result.measurements["fraction_outside"], 0.5)
@@ -89,14 +89,14 @@ class TestSomaInsideCcfMesh(unittest.TestCase):
         self.assertTrue(result.measurements["soma_inside_brain"])
         self.assertEqual(result.measurements["soma_structure_id"], 500)
 
-    def test_soma_outside_fails(self):
+    def test_soma_outside_flags_for_review(self):
         df = _df([
             (1, 1, 0.0, 0.0, 0.0, 1.0, -1),   # outside the cube
             (2, 3, 5.0, 5.0, 5.0, 1.0, 1),
         ])
         pm = PreparedMorphology.from_dataframe(df)
         result = SomaInsideCcfMeshMetric().evaluate(pm, _ccf_ctx(), Policy("t", {}))
-        self.assertEqual(result.status, "fail")
+        self.assertEqual(result.status, "review")
         self.assertEqual(result.flagged_node_ids, [1])
 
 
