@@ -47,7 +47,7 @@ class TestRunQC(unittest.TestCase):
         self.assertEqual(report.summary["overall_status"], "pass")
         self.assertEqual(report.summary["n_metrics"], len(resolve_suite("default_pre_registration_tests")))
         self.assertEqual(report.requested_metrics, resolve_suite("default_pre_registration_tests"))
-        self.assertEqual(report.policy_version, "policy_v1")
+        self.assertEqual(report.context.policy_version, "policy_v1")
         self.assertTrue(report.passed)
 
     def test_explicit_metrics_list(self):
@@ -116,7 +116,7 @@ class TestRunQC(unittest.TestCase):
     def test_policy_version_override(self):
         ctx = QCContext(space=Space.IMAGE_SPACE, policy_version="policy_v1")
         report = run_qc(_clean_tree(), ctx, metrics=["local_tortuosity"], policy_version="policy_v1")
-        self.assertEqual(report.policy_version, "policy_v1")
+        self.assertEqual(report.context.policy_version, "policy_v1")
 
 
 class TestQCContextCoordinateScaleValidation(unittest.TestCase):
@@ -172,7 +172,7 @@ class TestCoordinateScaleIntegration(unittest.TestCase):
     def test_coordinate_scale_recorded_in_report(self):
         ctx = QCContext(space=Space.IMAGE_SPACE, coordinate_scale=(0.5, 0.5, 1.0))
         report = run_qc(_clean_tree(), ctx, metrics=["single_connected_component"])
-        self.assertEqual(report.coordinate_scale, (0.5, 0.5, 1.0))
+        self.assertEqual(report.context.coordinate_scale, (0.5, 0.5, 1.0))
 
     def test_prebuilt_morphology_with_nonidentity_scale_raises(self):
         from standard_morph.preparation import PreparedMorphology
@@ -186,8 +186,22 @@ class TestCoordinateScaleIntegration(unittest.TestCase):
         ctx = QCContext(space=Space.IMAGE_SPACE, coordinate_scale=(0.748, 0.748, 1.0))
         report = run_qc(_clean_tree(), ctx, metrics=["single_connected_component"])
         d = report.to_dict()
-        self.assertEqual(d["coordinate_scale"], (0.748, 0.748, 1.0))
+        self.assertEqual(d["context"]["coordinate_scale"], (0.748, 0.748, 1.0))
         json.dumps(d)  # must not raise
+
+    def test_context_to_dict_handles_array_resources(self):
+        import json
+        import numpy as np
+        ctx = QCContext(space=Space.IMAGE_SPACE, resources={
+            "image_soma_xyz": np.array([1.0, 2.0, 3.0]),
+            "ccf_annotation": np.zeros((10, 10, 10)),
+        })
+        report = run_qc(_clean_tree(), ctx, metrics=["single_connected_component"])
+        d = json.loads(json.dumps(report.to_dict()))
+        self.assertEqual(d["context"]["space"], "image_space")
+        self.assertEqual(d["context"]["resources"]["image_soma_xyz"], [1.0, 2.0, 3.0])
+        self.assertEqual(d["context"]["resources"]["ccf_annotation"], "<ndarray>")
+        self.assertIs(report.context.resources["ccf_annotation"], ctx.resources["ccf_annotation"])
 
 
 def _custom_policy(version="custom_v1", **overrides):
@@ -212,8 +226,9 @@ class TestCustomPolicy(unittest.TestCase):
         ctx = QCContext(space=Space.IMAGE_SPACE)
         report = run_qc(_clean_tree(), ctx, metrics=["local_tortuosity"],
                         policy=_custom_policy(version="my_pipeline_v3"))
-        self.assertEqual(report.policy_version, "my_pipeline_v3")
-        self.assertEqual(report.to_dict()["policy_version"], "my_pipeline_v3")
+        self.assertEqual(report.context.policy_version, "my_pipeline_v3")
+        self.assertEqual(report.to_dict()["context"]["policy_version"], "my_pipeline_v3")
+        self.assertEqual(ctx.policy_version, "policy_v1")  # caller's context untouched
 
     def test_policy_and_policy_version_are_exclusive(self):
         ctx = QCContext(space=Space.IMAGE_SPACE)

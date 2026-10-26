@@ -124,7 +124,7 @@ class TestCcfApplicability(unittest.TestCase):
         names = [r.name for r in report.results]
         self.assertEqual(names, resolve_suite("default_post_registration_tests"))
         # Resolution is run-level provenance on the report, not a per-metric measurement.
-        self.assertEqual(report.ccf_resolution, 1)
+        self.assertEqual(report.context.ccf_resolution, 1)
         outside = next(r for r in report.results if r.name == "nodes_outside_ccf_mesh")
         self.assertNotIn("resolution_um", outside.measurements)
 

@@ -154,10 +154,13 @@ def to_quality_control(
     """Build a ``QualityControl`` from a :class:`RunReport` or a list of results.
 
     For a ``RunReport``, metrics are tagged ``{"phase": "integrity" | "morphology"}``
-    and grouped by phase. ``metric_kwargs`` are forwarded to :func:`to_qc_metric`.
+    For a ``RunReport``, metrics are tagged ``{"phase": "integrity" | "morphology"}``
+    and grouped by phase, and the report's context is used when no ``context``
+    is given. ``metric_kwargs`` are forwarded to :func:`to_qc_metric`.
     """
     timestamp = timestamp or datetime.now(tz=timezone.utc)
     if isinstance(source, RunReport):
+        context = context or source.context
         tagged = [(r, {"phase": "integrity"}) for r in source.integrity_results]
         tagged += [(r, {"phase": "morphology"}) for r in source.results]
         grouping = ["phase"]
