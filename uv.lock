@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 2
 requires-python = ">=3.10"
 resolution-markers = [
     "python_full_version >= '3.12'",
@@ -1969,21 +1969,16 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "aind-data-schema", marker = "extra == 'data-schema'", specifier = ">=2.0.0" },
-    { name = "aind-data-schema", marker = "extra == 'full'", specifier = ">=2.0.0" },
-    { name = "imageio", marker = "extra == 'full'" },
+    { name = "aind-data-schema", marker = "extra == 'data-schema'", specifier = ">=2.3.0" },
     { name = "imageio", marker = "extra == 'soma-mip'" },
     { name = "numpy" },
     { name = "pandas" },
     { name = "pynrrd", marker = "extra == 'ccf'" },
-    { name = "pynrrd", marker = "extra == 'full'" },
     { name = "pynrrd", marker = "extra == 'test'" },
     { name = "pytest", marker = "extra == 'test'" },
-    { name = "s3fs", marker = "extra == 'full'" },
     { name = "s3fs", marker = "extra == 'soma-mip'" },
-    { name = "scikit-image", marker = "extra == 'full'" },
     { name = "scikit-image", marker = "extra == 'soma-mip'" },
-    { name = "zarr", marker = "extra == 'full'" },
+    { name = "standard-morph", extras = ["soma-mip", "ccf", "data-schema"], marker = "extra == 'full'" },
     { name = "zarr", marker = "extra == 'soma-mip'" },
 ]
 provides-extras = ["soma-mip", "ccf", "data-schema", "full", "test"]
