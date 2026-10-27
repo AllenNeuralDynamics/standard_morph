@@ -233,13 +233,17 @@ Example `report.to_dict()` (two of eleven results shown; flagged lists trimmed):
 
 ```json
 {
-  "schema_version": "1.2",
+  "schema_version": "2.0",
   "standard_morph_version": "0.1.0",
   "generated_at": "2026-08-12T20:58:02.477061+00:00",
-  "space": "image_space",
-  "morphology_kind": "merged",
-  "ccf_resolution": null,
-  "policy_version": "policy_v1",
+  "context": {
+    "space": "image_space",
+    "morphology_kind": "merged",
+    "resources": {"filename": "cell.swc"},
+    "ccf_resolution": 10,
+    "policy_version": "policy_v1",
+    "coordinate_scale": [1.0, 1.0, 1.0]
+  },
   "suite_name": "default_pre_registration_tests",
   "requested_metrics": [
     "single_root_node", "single_connected_component", "node_identity_types",
@@ -356,7 +360,7 @@ thresholds["local_tortuosity"]["tortuosity_threshold"] = 5.0
 policy = Policy(version="my_pipeline_v1", thresholds=thresholds)
 report = run_qc("cell.swc", QCContext(space=Space.IMAGE_SPACE),
                 suite_name="default_pre_registration_tests", policy=policy)
-report.policy_version   # 'my_pipeline_v1'
+report.context.policy_version   # 'my_pipeline_v1'
 ```
 
 `policy` and `policy_version` are mutually exclusive. Because the thresholds are copied into `report.policy_thresholds`, a report from a custom policy can still be traced to its exact values. A custom policy goes through the same pre-flight as a built-in one, so a missing required key raises `MissingPolicyValuesError` before any metric runs.

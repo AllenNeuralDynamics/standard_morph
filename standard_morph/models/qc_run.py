@@ -14,9 +14,12 @@ produce the *same shape* of report -- only the statuses differ. ``to_dict``
 yields a plain, JSON-serialisable structure suitable for a file or database, and
 includes the derived ``integrity_ok`` / ``passed`` verdicts for convenience.
 """
-from dataclasses import dataclass, asdict, field
+from dataclasses import dataclass, asdict, field, fields, replace
+from enum import Enum
+import json
 from typing import List, Optional
 
+from standard_morph.models.qc_context import QCContext
 from standard_morph.models.qc_result import MetricResult
 
 #: Bump when the report structure changes in a breaking way.
@@ -24,7 +27,34 @@ from standard_morph.models.qc_result import MetricResult
 #: morphology_evaluated) and the "skipped" metric status.
 #: 1.1 -> 1.2: added policy_thresholds (the policy values each executed metric
 #: ran under), so a report is self-describing even for a custom policy.
-SCHEMA_VERSION = "1.2"
+#: 1.2 -> 2.0: space, morphology_kind, ccf_resolution, policy_version and
+#: coordinate_scale moved from top-level keys into a nested ``context``.
+SCHEMA_VERSION = "2.0"
+
+#: Array-like resources larger than this are summarised by type in ``to_dict``.
+_MAX_INLINE_ARRAY_SIZE = 64
+
+
+def _jsonable_resource(value):
+    if hasattr(value, "tolist") and getattr(value, "size", 0) <= _MAX_INLINE_ARRAY_SIZE:
+        value = value.tolist()
+    try:
+        json.dumps(value)
+    except (TypeError, ValueError):
+        return f"<{type(value).__name__}>"
+    return value
+
+
+def _context_to_dict(context):
+    d = {}
+    for f in fields(context):
+        value = getattr(context, f.name)
+        if isinstance(value, Enum):
+            value = value.value
+        elif f.name == "resources":
+            value = {k: _jsonable_resource(v) for k, v in value.items()}
+        d[f.name] = value
+    return d
 
 
 @dataclass
@@ -46,6 +76,10 @@ class RunReport:
         Bump this when the dict structure changes in a breaking way.
     standard_morph_version : str
         Version of the ``standard_morph`` package that produced this report.
+    context : QCContext
+        The run's context. ``policy_version`` is the version actually used
+        (after any ``run_qc`` override) and ``resources`` includes any
+        ``filename`` injected from a path input.
     integrity_results : list[MetricResult]
         Results from the input-integrity phase (always run first).
     results : list[MetricResult]
@@ -68,14 +102,10 @@ class RunReport:
     schema_version: str
     standard_morph_version: str
     generated_at: str
-    space: str
-    morphology_kind: str
-    ccf_resolution: Optional[int]  # microns/voxel, when space == ccf_registered
-    policy_version: str
+    context: QCContext
     suite_name: Optional[str]
     requested_metrics: List[str]
     input_ref: Optional[str]
-    coordinate_scale: tuple  # (sx, sy, sz) multiplier applied to raw XYZ before metric evaluation
     #: Active policy values for every metric in the run, keyed by metric name.
     policy_thresholds: dict = field(default_factory=dict)
     #: Input-integrity phase results (always run, before the morphology is built).
@@ -105,10 +135,15 @@ class RunReport:
         ``policy_thresholds`` become ``{"lo", "hi"}`` dicts. Coordinate tuples in
         ``flagged_node_coordinates`` are converted to lists so the result
         round-trips through ``json.dumps`` without a custom encoder.
+        ``context`` enums become their values; context ``resources`` that are
+        not JSON-serialisable (e.g. a preloaded atlas array) become a
+        ``"<TypeName>"`` placeholder.
         The derived properties :attr:`integrity_ok` and :attr:`passed` are
         also included as top-level keys for convenience.
         """
-        d = asdict(self)
+        # Keep asdict from deep-copying context resources (which may be large arrays).
+        d = asdict(replace(self, context=None))
+        d["context"] = _context_to_dict(self.context)
         # Coordinate tuples -> lists for clean JSON, across both result lists.
         for key in ("integrity_results", "results"):
             for r in d[key]:
