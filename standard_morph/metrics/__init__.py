@@ -24,6 +24,7 @@ from standard_morph.metrics.axon_origination import AxonOriginationMetric
 from standard_morph.metrics.apical_origination import ApicalOriginationMetric
 from standard_morph.metrics.compartment_transitions import CompartmentTransitionsMetric
 from standard_morph.metrics.soma_at_centroid import SomaAtCentroidMetric
+from standard_morph.metrics.root_near_detected_soma import RootNearDetectedSomaMetric
 from standard_morph.metrics.local_tortuosity import LocalTortuosityMetric
 from standard_morph.metrics.connected_component import SingleConnectedComponentMetric
 from standard_morph.metrics.branch_degree import BranchMaxDegreeMetric
@@ -55,6 +56,7 @@ __all__ = [
     "ApicalOriginationMetric",
     "CompartmentTransitionsMetric",
     "SomaAtCentroidMetric",
+    "RootNearDetectedSomaMetric",
     "LocalTortuosityMetric",
     "SingleConnectedComponentMetric",
     "BranchMaxDegreeMetric",
