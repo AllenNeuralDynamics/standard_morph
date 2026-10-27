@@ -16,8 +16,9 @@ from drifting apart: the *only* difference is the CCF metrics.
 Note: the always-run input-integrity checks (``required_columns``, ...,
 ``acyclic``) are not listed here -- the engine runs them every time regardless of
 suite. Resource-driven, opt-in metrics (``filename_format``,
-``parent_before_child``, ``soma_at_centroid``) are likewise omitted; request them
-explicitly via ``metrics=[...]`` when their inputs are available.
+``parent_before_child``, ``soma_at_centroid``, ``root_near_detected_soma``) are
+likewise omitted; request them explicitly via ``metrics=[...]`` when their inputs
+are available.
 """
 
 #: Morphology checks that are meaningful in *any* coordinate space, so they run

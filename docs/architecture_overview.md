@@ -136,7 +136,7 @@ A malformed file flows through the *same* path and produces the *same shape* of 
 **Remaining morphology metrics (of the 17):**
 
 - **Pure graph / geometry** (buildable now): 4 & 5 (pre/post-resampling edge length), 13 (axon origin distance + valid parent-child origins), 15 (node-type transition within an unbranched segment).
-- **Needs a resource or convention**: 7 (filename — needs the file name), 9 (root centered on soma *image* position — needs image/MIP data), 14 (multiple apical origins — needs apical/basal annotation AIND tracings don't yet carry).
+- **Needs a resource or convention**: 7 (filename — needs the file name), 9 (root centered on soma *image* position — `root_near_detected_soma` checks it against automated soma detections in image space; a CCF-space variant is still open), 14 (multiple apical origins — needs apical/basal annotation AIND tracings don't yet carry).
 - **Needs algorithm design**: 12 (duplicate segments / path overlays).
 - **Scalar companions** to metrics we have: 2b (soma distance-to-surface), 3b (max node distance from mesh).
 - **Deprioritized**: 8's whitespace-consistency check — our parser is delimiter-agnostic, so it's pedantic for this pipeline.

@@ -54,6 +54,15 @@ _POLICY_DEFS = {
             # every axis (near the centroid, not merely inside the soma extent).
             "max_offset_fraction": 0.5,
         },
+        "root_near_detected_soma": {
+            # Clamp applied to each detected soma's radius before testing the
+            # root against it. Ellipsoid fits are unreliable (fits of hundreds
+            # of um occur), and lo must also cover the detector's positional
+            # error: the AIND exaSPIM detector currently reports the proposal
+            # position, which put correct roots of 13 traced 841260 neurons up
+            # to 27 um away. Tighten once detections report the fitted center.
+            "soma_radius_um": PolicyRange(lo=35.0, hi=50.0),
+        },
         "single_connected_component": {},  # no thresholds
         "single_root_node": {},  # structural, no thresholds
         "soma_first_node": {},  # structural, no thresholds

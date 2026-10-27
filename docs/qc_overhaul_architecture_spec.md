@@ -196,9 +196,9 @@ The SWC processing pipeline stages in order: (1) merge axon and dendrite SWCs, (
 ---
 
 **Metric 9 — Root node centered on soma image position**
-- Stage: Pre and Post | Auto-fail pre-refinement: Yes | Status: **Partial**
+- Stage: Pre and Post | Auto-fail pre-refinement: Yes | Status: **Yes** (`root_near_detected_soma`; `soma_at_centroid` for a single known centroid)
 - Description: Root node must be centered on the soma image position. Compute distance from root node to annotated soma centroid and flag above threshold; include overlay image.
-- Gap: MIP of root node can be saved, but there is no validation that the root node is actually the soma. Requires image data access (`resources` in context model).
+- Implementation: `root_near_detected_soma` checks the root against every automated soma detection in the brain, passed in through `resources` (it passes if the root is within any detection's clamped radius, and a miss is graded `review`). Image space only; there is no post-registration variant yet. `soma_at_centroid` covers a single known centroid and can render the soma MIP overlay.
 
 ---
 

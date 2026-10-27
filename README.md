@@ -164,6 +164,8 @@ Most metrics need nothing beyond the SWC. A handful read extra per-file inputs f
 | `filename` | `filename_format` | The SWC filename. Auto-derived when you pass a path; supply it explicitly for a DataFrame / `PreparedMorphology`. |
 | `image_soma_xyz` | `soma_at_centroid` | Image-detected soma centroid `(x, y, z)`. |
 | `image_soma_radius_xyz` | `soma_at_centroid` | Per-axis soma radius `(rx, ry, rz)`. |
+| `soma_detection_xyz` | `root_near_detected_soma` | Every detected soma center in the brain, an `(N, 3)` array of `(x, y, z)` in µm, same frame as the SWC. |
+| `soma_detection_radius_um` | `root_near_detected_soma` | The radius of each detection, an `(N,)` array in µm. |
 
 **Optional** — enables extra behaviour or overrides a default:
 
@@ -400,7 +402,7 @@ class MySpaceVaryingMetric(Metric):
 
 ## Implemented metrics
 
-22 metrics are wired up across both phases. Adding a metric requires no engine or suite changes (see [Writing a custom metric](#writing-a-custom-metric)).
+23 metrics are wired up across both phases. Adding a metric requires no engine or suite changes (see [Writing a custom metric](#writing-a-custom-metric)).
 
 **Input-integrity metrics** — read the raw SWC table. The six *buildability* checks always run, regardless of suite; `filename_format` and `parent_before_child` are opt-in:
 
@@ -433,13 +435,14 @@ class MySpaceVaryingMetric(Metric):
 | `branch_max_degree` | 17 | Branch points with more than `max_children` children (soma excluded). | image + ccf |
 | `soma_child_distance` | — | Soma's immediate children farther than `max_soma_child_to_soma_um` from the soma. | image + ccf |
 | `soma_at_centroid` | — | SWC soma within a fraction of the soma radius of the image centroid (`max_offset_fraction`); optional soma MIP artifact. Needs `resources["image_soma_xyz"]` + `["image_soma_radius_xyz"]`. | image |
+| `root_near_detected_soma` | 9 | Soma root lies within the radius (clamped to `soma_radius_um`) of at least one automatically detected soma. Graded `review`. Needs `resources["soma_detection_xyz"]` + `["soma_detection_radius_um"]`. | image |
 
-`filename_format` and `soma_at_centroid` need per-file resources, so they are **opt-in** — not in the default suites; request them via `metrics=[...]` or your own suite (see [Opt-in checks that need per-file inputs](#opt-in-checks-that-need-per-file-inputs)).
+`filename_format`, `soma_at_centroid` and `root_near_detected_soma` need per-file resources, so they are **opt-in** — not in the default suites; request them via `metrics=[...]` or your own suite (see [Opt-in checks that need per-file inputs](#opt-in-checks-that-need-per-file-inputs)).
 
 
 ## Opt-in checks that need per-file inputs
 
-Two checks are driven by per-file metadata supplied through `resources`, so they are opt-in rather than part of the default suites (a suite run over bare DataFrames would otherwise fail-fast on the missing input). Both follow the same contract as the CCF metrics: if the required resource is absent, the run halts with `IncompatibleMetricContextError` rather than silently skipping.
+Three checks are driven by per-file or per-brain metadata supplied through `resources`, so they are opt-in rather than part of the default suites (a suite run over bare DataFrames would otherwise fail-fast on the missing input). All follow the same contract as the CCF metrics: if the required resource is absent, the run halts with `IncompatibleMetricContextError` rather than silently skipping.
 
 **Filename convention — `filename_format`.** Validates the SWC filename against a naming convention (`AIND` by default, a regex; `AIBS` is a TODO stub that always passes). Select the convention with the `name_format` policy key.
 
@@ -476,6 +479,37 @@ print(r.artifacts)              # [{'type': 'soma_mip', 'path': 'cell_soma_mip.p
 ```
 
 Rendering the MIP needs `pip install ".[soma-mip]"`; any rendering failure is recorded in `measurements["soma_mip_error"]` and never fails the check.
+
+The radii are along x, y and z. Radii from an ellipsoid fit along its principal axes (e.g. the AIND exaSPIM soma detector's `Radii (μm)`, sorted smallest to largest, with no orientation) are not per-axis radii; use `root_near_detected_soma` with a single radius per soma instead.
+
+**Root on a detected soma — `root_near_detected_soma`.** Checks the soma root against *every* soma found by automated detection in the brain, so you don't need to know beforehand which soma a neuron belongs to. The root passes if it is within the radius of at least one detection:
+
+```
+d_i   = |root - detection_i|
+tol_i = clip(radius_i, soma_radius_um.lo, soma_radius_um.hi)
+pass  if any(d_i <= tol_i)
+```
+
+The `soma_radius_um` range (default `35`–`50` µm) clamps each detected radius. Ellipsoid fits are unreliable: a tiny fit would reject a correct root, and a fit of hundreds of µm would accept almost anything. `lo` must also cover the detector's positional error. The default is sized for the AIND exaSPIM detector as it is now: it reports the proposal position rather than the fitted center, and correct roots of 13 traced neurons were up to 27 µm from it. Lower it for detections with fitted centers. A scalar `soma_radius_um` applies one fixed radius to every detection.
+
+A miss is graded `review`, not `fail`, because detectors miss real somas. The root is flagged, and the measurements name the nearest detection, its distance and its clamped radius. On a pass, `matched_detection_index` names the matched detection, so a batch can spot two neurons claiming the same soma. `second_nearest_distance_um` and `n_detections_within_tolerance` show how ambiguous the match was.
+
+```python
+import numpy as np
+
+context = QCContext(
+    space=Space.IMAGE_SPACE,
+    resources={
+        "soma_detection_xyz": np.array([[30446.6, 3375.0, 9568.0], [30285.0, 17856.3, 9280.0]]),
+        "soma_detection_radius_um": np.array([25.6, 30.1]),
+    },
+)
+report = run_qc("cell.swc", context, metrics=["root_near_detected_soma"])
+r = report.results[0]
+print(r.status, r.value)   # e.g. pass 4.2  (distance to the nearest detection, um)
+```
+
+Detections and the SWC must share a frame and units (µm in image space); the metric does no coordinate conversion.
 
 
 ## CCF post-registration checks (atlas)
